@@ -10,8 +10,8 @@ services:
       - .:/app
     ports:
       - 8017:8017
-  # Event Queue Kafka
-  queue_coupons:
-    build: .
-    command: >
-      sh -c "python consumer.py"
+  # # Event Queue Kafka
+  # queue_coupons:
+  #   build: .
+  #   command: >
+  #     sh -c "python consumer.py"

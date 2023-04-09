@@ -121,17 +121,17 @@ DATABASES["default"]["ATOMIC_REQUESTS"] = True
 #         },
 #     }
 # }
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": env("REDIS_URL"),
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "PASSWORD": env("REDIS_PASSWORD", default=None),
-            "SSL": True,
-        },
-    }
-}
+# CACHES = {
+#     "default": {
+#         "BACKEND": "django_redis.cache.RedisCache",
+#         "LOCATION": env("REDIS_URL"),
+#         "OPTIONS": {
+#             "CLIENT_CLASS": "django_redis.client.DefaultClient",
+#             "PASSWORD": env("REDIS_PASSWORD", default=None),
+#             "SSL": True,
+#         },
+#     }
+# }
 
 # DEFAULT_CACHE_ALIAS = "default"
 
