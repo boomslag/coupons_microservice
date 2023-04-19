@@ -11,6 +11,8 @@ from django.http import Http404
 from rest_framework.exceptions import ValidationError
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 import jwt
+from django.core.cache import cache
+
 import requests
 from django.conf import settings
 tax = settings.TAXES
@@ -104,6 +106,13 @@ class CreateCouponView(StandardAPIView):
                     object_id=object_id
                 )
                 coupon.save()
+                # Update the cache for the list of coupons
+                cache_key = f'coupons_{user_id}_{content_type}_{object_id}'
+                cached_coupons = cache.get(cache_key)
+                if cached_coupons is not None:
+                    coupon_data = CouponSerializer(coupon).data
+                    cached_coupons.append(coupon_data)
+                    cache.set(cache_key, cached_coupons)
             return self.send_response('Coupon created', status=status.HTTP_201_CREATED)
         except KeyError as e:
             return self.send_error("Missing required field: " + str(e), status=status.HTTP_400_BAD_REQUEST)
@@ -118,23 +127,35 @@ class ListCouponsView(StandardAPIView):
         payload = validate_token(request)
         user_id = payload['user_id']
         type = request.query_params.get('type')
-
         object = request.query_params.get('object')
 
-        try:
-            if object:
-                coupons = Coupon.objects.filter(user=user_id, content_type=type, object_id=object)
-            else:
-                coupons = Coupon.objects.filter(user=user_id)
+        # Generate a cache key based on the user ID, type, and object
+        cache_key = f'coupons_{user_id}_{type}_{object}'
 
-            serializer = self.serializer_class(coupons, many=True)
+        # Try to get the serialized coupons data from the cache
+        serialized_coupons = cache.get(cache_key)
 
-            return self.paginate_response(request, serializer.data)
-            
-        except Coupon.DoesNotExist:
-            return self.send_error('No coupons found',status=status.HTTP_404_NOT_FOUND)
-        except:
-            return self.send_error('Bad Request', status=status.HTTP_400_BAD_REQUEST)
+        # If the serialized coupons data is not in the cache, fetch it and store it in the cache
+        if serialized_coupons is None:
+            try:
+                if object:
+                    coupons = Coupon.objects.filter(user=user_id, content_type=type, object_id=object)
+                else:
+                    coupons = Coupon.objects.filter(user=user_id)
+
+                serializer = self.serializer_class(coupons, many=True)
+                serialized_coupons = serializer.data
+
+                # Store the serialized coupons data in the cache with a specified timeout
+                cache_timeout = 60 * 5  # Cache the data for 5 minutes (adjust as needed)
+                cache.set(cache_key, serialized_coupons, cache_timeout)
+
+            except Coupon.DoesNotExist:
+                return self.send_error('No coupons found',status=status.HTTP_404_NOT_FOUND)
+            except:
+                return self.send_error('Bad Request', status=status.HTTP_400_BAD_REQUEST)
+
+        return self.paginate_response(request, serialized_coupons)
 
 
 class DeleteCouponView(StandardAPIView):
@@ -166,7 +187,21 @@ class DeleteCouponView(StandardAPIView):
 
 class DetailCouponView(StandardAPIView):
     permission_classes = (permissions.AllowAny,)
+
     def get(self, request, id, format=None):
-        coupon = Coupon.objects.get(id=id)
-        serializer = CouponSerializer(coupon).data
-        return self.send_response(serializer,status=status.HTTP_200_OK)
+        # Generate a cache key based on the coupon ID
+        cache_key = f'coupon_{id}'
+
+        # Try to get the serialized coupon data from the cache
+        serialized_coupon = cache.get(cache_key)
+
+        # If the serialized coupon data is not in the cache, fetch it and store it in the cache
+        if serialized_coupon is None:
+            coupon = Coupon.objects.get(id=id)
+            serialized_coupon = CouponSerializer(coupon).data
+
+            # Store the serialized coupon data in the cache with a specified timeout
+            cache_timeout = 60 * 5  # Cache the data for 5 minutes (adjust as needed)
+            cache.set(cache_key, serialized_coupon, cache_timeout)
+
+        return self.send_response(serialized_coupon, status=status.HTTP_200_OK)
